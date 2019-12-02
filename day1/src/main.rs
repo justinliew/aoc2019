@@ -10,8 +10,18 @@ fn main() {
 
     for line in reader.lines() {
         let mass = line.unwrap().parse::<i32>().unwrap();
-        let sum = mass / 3 - 2;
-        total += sum;
+        // part 1
+        // let sum = mass / 3 - 2;
+        // total += sum;
+
+        // part 2
+        let mut sum = mass / 3 - 2;
+        while sum > 0 {
+            total += sum;
+            sum = sum / 3 - 2;
+        }
+        // println!("{}", total);
+        // std::process::exit(0);
     }
     println!("{}", total);
 }
