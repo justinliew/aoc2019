@@ -8,6 +8,10 @@ enum Op {
     MULTIPLY=2,
     STORE=3,
     PRINT=4,
+    JT=5,
+    JF=6,
+    LT=7,
+    EQ=8,
     HALT=99,
 }
 
@@ -23,6 +27,10 @@ fn get_parameters(op: i32) -> (Op, Mode, Mode, Mode ) {
         2 => Op::MULTIPLY,
         3 => Op::STORE,
         4 => Op::PRINT,
+        5 => Op::JT,
+        6 => Op::JF,
+        7 => Op::LT,
+        8 => Op::EQ,
         99 => Op::HALT,
         _ => Op::INVALID,
     },
@@ -43,40 +51,33 @@ fn get_parameters(op: i32) -> (Op, Mode, Mode, Mode ) {
     })
 }
 
+fn get_operand(mode: Mode, program: &[i32], pc: usize) -> i32 {
+    match mode {
+        Mode::POSITION => program[program[pc] as usize],
+        Mode::IMMEDIATE => program[pc],
+    }
+}
+
 fn run(mut program: Vec<i32>, input: i32) -> bool {
     let mut pc = 0;
     while pc < program.len() {
 
         let (op,mode1,mode2,_) = get_parameters(program[pc]);
-        println!("Program: {:?}", &program[pc..]);
-        println!("Handling {} -> {:?},{:?},{:?}", program[pc],op,mode1,mode2);
+        // println!("Program: {:?}", &program[pc..]);
+        // println!("({})Handling {} -> {:?},{:?},{:?}", pc, program[pc],op,mode1,mode2);
 
         match op {
             Op::ADD => {
-                let operand1 = match mode1 {
-                    Mode::POSITION => program[program[pc+1] as usize],
-                    Mode::IMMEDIATE => program[pc+1],
-                };
-                let operand2 = match mode2 {
-                    Mode::POSITION => program[program[pc+2] as usize],
-                    Mode::IMMEDIATE => program[pc+2],
-                };
+                let operand1 = get_operand(mode1, &program, pc+1 as usize);
+                let operand2 = get_operand(mode2, &program, pc+2 as usize);
                 let output = program[pc+3] as usize;
-                println!("Adding {} and {}", operand1, operand2);
                 program[output] = operand1 + operand2;
                 pc += 4;
             },
             Op::MULTIPLY => {
-                let operand1 = match mode1 {
-                    Mode::POSITION => program[program[pc+1] as usize],
-                    Mode::IMMEDIATE => program[pc+1],
-                };
-                let operand2 = match mode2 {
-                    Mode::POSITION => program[program[pc+2] as usize],
-                    Mode::IMMEDIATE => program[pc+2],
-                };
+                let operand1 = get_operand(mode1, &program, pc+1 as usize);
+                let operand2 = get_operand(mode2, &program, pc+2 as usize);
                 let output = program[pc+3] as usize;
-                println!("Multiplying {} and {}", operand1, operand2);
                 program[output] = operand1 * operand2;
                 pc += 4;
             },
@@ -86,9 +87,48 @@ fn run(mut program: Vec<i32>, input: i32) -> bool {
                 pc += 2;
             },
             Op::PRINT => {
-                println!("{}", program[program[pc+1] as usize]);
+                let operand1 = get_operand(mode1, &program, pc+1 as usize);
+                println!("{}", operand1);
                 pc += 2;
-            }
+            },
+            Op::JT => {
+                let operand1 = get_operand(mode1, &program, pc+1 as usize);
+                let operand2 = get_operand(mode2, &program, pc+2 as usize);
+                if operand1 != 0 {
+                    pc = operand2 as usize;
+                } else {
+                    pc += 3;
+                }
+            },
+            Op::JF => {
+                let operand1 = get_operand(mode1, &program, pc+1 as usize);
+                let operand2 = get_operand(mode2, &program, pc+2 as usize);
+                if operand1 == 0 {
+                    pc = operand2 as usize;
+                } else {
+                    pc += 3;
+                }
+            },
+            Op::LT => {
+                let operand1 = get_operand(mode1, &program, pc+1 as usize);
+                let operand2 = get_operand(mode2, &program, pc+2 as usize);
+                let output = program[pc+3] as usize;
+                program[output] = match operand1 < operand2 {
+                    true => 1,
+                    false => 0,
+                };
+                pc += 4;
+            },
+            Op::EQ => {
+                let operand1 = get_operand(mode1, &program, pc+1 as usize);
+                let operand2 = get_operand(mode2, &program, pc+2 as usize);
+                let output = program[pc+3] as usize;
+                program[output] = match operand1 == operand2 {
+                    true => 1,
+                    false => 0,
+                };
+                pc += 4;
+            },
             Op::HALT => {
                 break;
             }
@@ -101,7 +141,7 @@ fn run(mut program: Vec<i32>, input: i32) -> bool {
 }
 
 fn main() {
-    let input = 1;
+    let input = 5;
     let file = File::open("input.txt").expect("Unable to open file input.txt");
     let reader = BufReader::new(file);
 
