@@ -58,15 +58,20 @@ fn get_operand(mode: Mode, program: &[i32], pc: usize) -> i32 {
     }
 }
 
-fn run(mut program: Vec<i32>, input: &[i32]) -> i32 {
-    let mut pc = 0;
-    let mut ic = 0;
+type ProgramType = Vec<i32>;
+type PcType = usize;
+
+fn run(cur_amp: usize, program: &mut ProgramType, mut pc: PcType, input: &[i32]) -> (PcType, i32, bool) {
+    let mut ic = 1;
     let mut output = 0;
+    if pc == 0 {
+        ic = 0;
+    }
     while pc < program.len() {
 
         let (op,mode1,mode2,_) = get_parameters(program[pc]);
         // println!("Program: {:?}", &program[pc..]);
-        // println!("({})Handling {} -> {:?},{:?},{:?}", pc, program[pc],op,mode1,mode2);
+        println!("({}/{})Handling {} -> {:?},{:?},{:?}", cur_amp, pc, program[pc],op,mode1,mode2);
 
         match op {
             Op::ADD => {
@@ -84,16 +89,20 @@ fn run(mut program: Vec<i32>, input: &[i32]) -> i32 {
                 pc += 4;
             },
             Op::STORE => {
-                let output = program[pc+1] as usize;
-                program[output] = input[ic];
+                let output_idx = program[pc+1] as usize;
+                program[output_idx] = input[ic];
+                println!("Storing {} ic {} at {}", input[ic], ic, output_idx);
+                output = input[ic];
                 ic += 1;
                 pc += 2;
             },
             Op::PRINT => {
                 let operand1 = get_operand(mode1, &program, pc+1 as usize);
-//                println!("{}", operand1);
-                output = operand1;
+                println!("{}", operand1);
                 pc += 2;
+                if ic == input.len() {
+                    return (pc, operand1, false);
+                }
             },
             Op::JT => {
                 let operand1 = get_operand(mode1, &program, pc+1 as usize);
@@ -134,6 +143,7 @@ fn run(mut program: Vec<i32>, input: &[i32]) -> i32 {
                 pc += 4;
             },
             Op::HALT => {
+                println!("HALT {:?}", input);
                 break;
             }
             _ => {
@@ -141,14 +151,14 @@ fn run(mut program: Vec<i32>, input: &[i32]) -> i32 {
             }
         };
     }
-    output
+    (pc,input[1], true)
 }
 
 fn perm5() -> Vec<Vec<i32>> {
     let mut ret = Vec::new();
 
     let mut c = [0; 5];
-    let mut base = vec![0,1,2,3,4];
+    let mut base = vec![5,6,7,8,9];
 
     ret.push(base.clone());
 
@@ -194,19 +204,43 @@ fn main() {
         }
 
         let phases = perm5();
-//        println!("{:?}", phases);
 
+        // these are keeping track of the max
         let mut max_output = 0;
-        for phase in phases {
-            let num_amps = 5;
-            let mut cur = 0;
-            for a in 0..num_amps {
-                cur = run(program.clone(), &[phase[a],cur]);
-                if cur > max_output {
-                    max_output = cur;
+        let mut max_phases_idx = 0;
+
+        // we do every permutation
+        for (phase_idx,phase) in phases.iter().enumerate() {
+            loop {
+
+                println!("Running phase {:?}", phase);
+                // initialize our amps for this run
+                let num_amps = 5;
+                let mut amps = Vec::new();
+                let mut pcs = vec![0;5];
+                for _ in 0..num_amps {
+                    amps.push(program.clone());
                 }
+
+                let mut output = 0;
+                let mut cur_amp = 0;
+                loop {
+                    let (pc, o, done) = run(cur_amp, &mut amps[cur_amp], pcs[cur_amp], &[phase[cur_amp],output]);
+                    if done {
+                        if o >= max_output {
+                            max_output = o;
+                            max_phases_idx = phase_idx;
+                        }
+                        break;
+                    }
+                    pcs[cur_amp] = pc;
+                    output = o;
+                    cur_amp += 1;
+                    cur_amp %= num_amps;
+                }
+                break;
             }
         }
-        println!("Max output is {}", max_output);
+        println!("Max output is {} (from phase {:?}", max_output, phases[max_phases_idx]);
     }
 }
