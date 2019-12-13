@@ -1,8 +1,12 @@
 use std::ops;
 use std::fs::File;
 use std::io::{prelude::*, BufReader};
+use std::hash::{Hash, Hasher};
+use std::time::{Duration,Instant};
+use std::collections::BTreeSet;
+use fasthash::xx::Hasher64;
 
-#[derive(Debug)]
+#[derive(Debug,Hash)]
 struct Vec3 {
     x: i32,
     y: i32,
@@ -72,6 +76,13 @@ fn energy(p: &Vec3, v: &Vec3) -> i32 {
     (v.x.abs() + v.y.abs() + v.z.abs())
 }
 
+fn calculate_hash<T: Hash>(t1: &T, t2: &T) -> u64 {
+    let mut s = Hasher64::default();
+    t1.hash(&mut s);
+    t2.hash(&mut s);
+    s.finish()
+}
+
 fn main() {
     let file = File::open("input.txt").expect("Unable to open file input.txt");
     let reader = BufReader::new(file);
@@ -92,25 +103,69 @@ fn main() {
         moon_vel.push(Vec3::new(0,0,0));
     }
 
-    // we are doing this twice per pair; maybe we can increase perf by changing the nested for loop...
+    let mut history = BTreeSet::new();
 
-    for e in 1..=1000 {
+    let mut e : u64 = 0;
+    let mut start = Instant::now();
+    let mut gtotal = Duration::new(0,0);
+    let mut utotal = Duration::new(0,0);
+    let mut etotal = Duration::new(0,0);
+    let mut htotal1 = Duration::new(0,0);
+    let mut htotal2 = Duration::new(0,0);
+    let mut htotal3 = Duration::new(0,0);
+    'outer: loop {
+        let gstart = Instant::now();
         for m1 in 0..moon_pos.len() {
             for m2 in 0..moon_pos.len() {
                 gravity(&moon_pos[m1],&moon_pos[m2], &mut moon_vel[m1]);
             }
         }
+        let gduration = gstart.elapsed();
+        gtotal += gduration;
+
+        let ustart = Instant::now();
         for m in 0..moon_pos.len() {
             update(&mut moon_pos[m],&moon_vel[m]);
         }
+        let uduration = ustart.elapsed();
+        utotal += uduration;
 
-        println!("Step {}", e);
-        let mut total = 0;
+        let hstart = Instant::now();
+        let h = calculate_hash(&moon_pos,&moon_vel);
+        htotal1 += hstart.elapsed();
+        // let mh = 0;
+        // let mv = 0;
+
+       if history.contains(&h) {
+            println!("It took {} steps", e);
+            break 'outer;
+       }
+        htotal2 += hstart.elapsed();
+
+        history.insert(h);
+        htotal3 += hstart.elapsed();
+
+//        let mut total = 0;
+        let estart = Instant::now();
         for i in 0..moon_pos.len() {
             let amt = energy(&moon_pos[i],&moon_vel[i]);
-            total += amt;
-            println!("Moon {:?} has vel {:?} {}", moon_pos[i], moon_vel[i], amt);
+//            total += amt;
+//            println!("Moon {:?} has vel {:?} {}", moon_pos[i], moon_vel[i], amt);
         }
-        println!("{}", total);
+        let eduration = estart.elapsed();
+        etotal += eduration;
+//        println!("{}", total);
+        e += 1;
+        if e % 1000000 == 0 {
+            let duration = start.elapsed();
+            println!("Step {} took total {:?} gravity {:?} update {:?} hash {:?}/{:?}/{:?} energy {:?}", e, duration, gtotal, utotal, htotal1, htotal2-htotal1,  htotal3-htotal2-htotal1, etotal);
+            start = Instant::now();
+            gtotal = Duration::from_millis(0);
+            utotal = Duration::from_millis(0);
+            etotal = Duration::from_millis(0);
+            htotal1 = Duration::from_millis(0);
+            htotal2 = Duration::from_millis(0);
+            htotal3 = Duration::from_millis(0);
+        }
     }
 }
