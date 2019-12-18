@@ -105,11 +105,47 @@ fn get_operand_for_write(mode: Mode, program: &mut ProgramType, pc: usize, relat
     }
 }
 
+enum BlockType {
+    EMPTY,
+    WALL,
+    BLOCK,
+    PADDLE,
+    BALL,
+    INVALID,
+}
+
+fn get_block_type(in: i32) -> BlockType {
+    match in {
+        0 => EMPTY,
+        1 => WALL,
+        2 => BLOCK,
+        3 => PADDLE,
+        4 => BALL,
+        _ => INVALID
+    }
+}
+
+enum InputMode {
+    X,
+    Y,
+    TYPE,
+    INVALID,
+}
+
+fn next_input_mode(in: InputMode) -> InputMode {
+    match in {
+        X => Y,
+        Y => TYPE,
+        TYPE => X,
+        _ => X,
+    }
+}
+
 fn run(program: &mut ProgramType) {
     let mut relative : i64 = 0;
     let mut pc: PcType = 0;
-
-    let mut idx = 0;
+    let mut input_mode = InputMode::X;
+    let mut pos = (0,0);
 
     while pc < program.len() {
 
@@ -140,12 +176,19 @@ fn run(program: &mut ProgramType) {
             },
             Op::PRINT => {
                 let operand1 = get_operand(mode1, program, pc+1 as usize, relative);
-                if (idx+1) % 3 == 0 {
-                    println!("{}", operand1);
+                match input_mode {
+                    X => {
+                        pos.0 = operand1;
+                    },
+                    Y => {
+                        pos.1 = operand1;
+                    },
+                    TYPE => {
+                    }
+                    _ => ()
                 }
-//                println!("{}", operand1);
+                println!("{}", operand1);
                 pc += 2;
-                idx += 1;
             },
             Op::JT => {
                 let operand1 = get_operand(mode1, program, pc+1 as usize, relative);
