@@ -1,11 +1,10 @@
 use std::fs::File;
 use std::io::{prelude::*, BufReader};
 
-#[derive(Default,Debug)]
+#[derive(Default,Debug,Clone)]
 struct Ingredient {
     amt: i32,
     name: String,
-    opt_output: String,
 }
 
 impl Ingredient {
@@ -14,7 +13,28 @@ impl Ingredient {
         Ingredient{
             amt: parts[0].parse::<i32>().unwrap(),
             name: parts[1].to_string(),
-            opt_output: "".to_string(),
+        }
+    }
+}
+
+#[derive(Debug)]
+struct Node {
+    cur: Ingredient,
+    from: Vec<Node>,
+}
+
+impl Node {
+    fn new(p: &Production) -> Self {
+        let mut from = Vec::new();
+        for i in &p.input {
+            from.push(Node{
+                cur: i.clone(),
+                from: Vec::new(),
+            });
+        }
+        Self {
+            cur: p.output.clone(),
+            from: from,
         }
     }
 }
@@ -42,31 +62,23 @@ impl Production {
     }
 }
 
-fn push_or_update(intermediates: &mut Vec<Ingredient>, name: &str, amt: i32, opt_output: &str) {
+fn get_production(rules: &Vec<Production>, name: &str) -> Option<&Production> {
+    rules.iter().find(|&p) p.output.name == name)
+}
 
-    if name == "ORE" {
-        println!("PUSHING ORE");
-        for i in 0..intermediates.len() {
-            if intermediates[i].name == name && intermediates[i].opt_output == opt_output {
-                println!("We found ore made by {}", opt_output);
-                intermediates[i].amt += amt;
-                return;
-            }
-        }
-    } else {
-        for i in 0..intermediates.len() {
-            if intermediates[i].name == name {
-                intermediates[i].amt += amt;
-                return;
-            }
-        }
+fn to_node(p: &Production) -> Node {
+    Node::new(p)
+}
+
+// Node has a current ingredient, and a list of from nodes which are the inputs
+// we also need to know the number of output units to produce.
+fn run(n: &mut Node, out_amt: i32) {
+    for f in n.from {
     }
-    intermediates.push(Ingredient{amt:amt, name: name.to_string(), opt_output: opt_output.to_string()});
-
 }
 
 fn main() {
-    let file = File::open("input1.txt").expect("Unable to open file input.txt");
+    let file = File::open("input0.txt").expect("Unable to open file input.txt");
     let reader = BufReader::new(file);
 
     let mut rules = Vec::new();
@@ -86,104 +98,12 @@ fn main() {
         rules.push(p);
     }
 
-    // for r in &rules {
-    //     println!("{:?}", r);
-    // }
-
-    // find the FUEL, work backwards until we find only ORE
-
-    // when we consume using a rule that includes ORE as the input, we need to push that to a separate list
-
-    let mut intermediates = Vec::new();
-    push_or_update(&mut intermediates, "FUEL", 1, "");
-
-    let mut ore = 0;
-    let mut ore_ingredients : Vec<Ingredient> = Vec::new();
-    while intermediates.len() > 0 {
-        let ing = intermediates.pop().unwrap();
-        println!("Producing with {} {}", ing.amt, ing.name);
-
-        match rules.iter().find(|&r| r.output.name == ing.name) {
-            None => {
-                println!("Using {} ORE", ing.amt);
-                ore += ing.amt;
-            },
-            Some(production) => {
-                for i in &production.input {
-                    if i.name == "ORE" {
-                        // we need to find ore_ingredients and subtract as much as we need to first
-                        let mut rem = ing.amt;
-                        for i in 0..ore_ingredients.len() {
-                            let idx = i as usize;
-                            if ore_ingredients[idx].opt_output == production.output.name {
-                                match ore_ingredients[idx].amt - rem {
-                                    // we have more than we need; just subtract all
-                                    i if i > 0 => {
-                                        ore_ingredients[idx].amt -= rem;
-                                        rem = 0;
-                                    },
-                                    // we have not enough
-                                    i if i < 0 => {
-                                        rem -= ore_ingredients[idx].amt;
-                                        ore_ingredients[idx].amt = 0;
-                                    },
-                                    // we have the exact amount
-                                    _ => {
-                                        rem = 0;
-                                        ore_ingredients[idx].amt = 0;
-                                    }
-                                }
-                            }
-                        }
-
-                        if rem > 0 {
-                            let mut mult = 0;
-                            while rem > 0 {
-                                rem -= production.output.amt;
-                                mult += 1;
-                            }
-                            rem = rem.abs();
-
-                            println!("Found ORE; consumed {} to make {} {}. {} leftover", i.amt*mult, production.output.amt * mult, production.output.name, rem);
-                            ore += i.amt*mult;
-
-                            let mut found = false;
-
-                            // we need to add -rem to the ore_ingredients
-                            for i in 0..ore_ingredients.len() {
-                                if ore_ingredients[i].opt_output == production.output.name && rem > 0 {
-                                    println!("Adding {} {} to excess", production.output.name, rem);
-                                    ore_ingredients[i].amt += rem;
-                                    found = true;
-                                    break;
-                                }
-                            }
-
-                            if !found {
-                                println!("Adding {} {} to excess", production.output.name, rem);
-                                ore_ingredients.push(Ingredient{
-                                    name: i.name.clone(), // "ORE"
-                                    amt: rem,
-                                    opt_output: production.output.name.clone(),
-                                });
-                            }
-                        }
-                    } else {
-                        let mut rem = ing.amt - production.output.amt;
-                        let mut mult = 1;
-                        while rem > 0 {
-                            rem -= production.output.amt;
-                            mult += 1;
-                        }
-                        push_or_update(&mut intermediates, &i.name, i.amt * mult, &production.output.name);
-                        if rem < 0 {
-                            push_or_update(&mut intermediates, &ing.name, -rem, &production.output.name);
-                        }
-                    }
-                }
-            }
+    let root_rule = get_production(&rules, "FUEL");
+    match root_rule {
+        None => (),
+        Some(p) => {
+            let mut root = to_node(p);
+            run(&mut root, 1);
         }
-    }
-
-    println!("ORE: {}", ore);
+    };
 }
